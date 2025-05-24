@@ -1,0 +1,203 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "The AWS CloudFormation template for this Serverless application",
+  "Resources": {
+    "ServerlessDeploymentBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "ServerlessDeploymentBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "ServerlessDeploymentBucket"
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:*",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Ref": "ServerlessDeploymentBucket"
+                      },
+                      "/*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Ref": "ServerlessDeploymentBucket"
+                      }
+                    ]
+                  ]
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": false
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "GraphQlApi": {
+      "Type": "AWS::AppSync::GraphQLApi",
+      "Properties": {
+        "Name": "realtimeChat",
+        "AuthenticationType": "API_KEY",
+        "AdditionalAuthenticationProviders": [],
+        "XrayEnabled": false
+      }
+    },
+    "GraphQlApiKeyDefault": {
+      "Type": "AWS::AppSync::ApiKey",
+      "Properties": {
+        "ApiId": {
+          "Fn::GetAtt": [
+            "GraphQlApi",
+            "ApiId"
+          ]
+        },
+        "Description": "Auto-generated api key",
+        "Expires": 1779577200
+      }
+    },
+    "GraphQlSchema": {
+      "Type": "AWS::AppSync::GraphQLSchema",
+      "Properties": {
+        "Definition": "schema {\r\n    query: Query\r\n    mutation: Mutation\r\n    subscription: Subscription\r\n}\r\n\r\ntype Subscription {\r\n    inbox(to: String): Message\r\n    @aws_subscribe(mutations: [\"message\"])\r\n}\r\n\r\ntype Mutation {\r\n    message(body: String!, to: String!): Message!\r\n}\r\n\r\ntype Message {\r\n    from: String!\r\n    to: String!\r\n    body: String!\r\n    sentAt: String!\r\n}\r\n\r\ntype Query {\r\n    me: String\r\n}\r\n",
+        "ApiId": {
+          "Fn::GetAtt": [
+            "GraphQlApi",
+            "ApiId"
+          ]
+        }
+      }
+    },
+    "GraphQlDsChat": {
+      "Type": "AWS::AppSync::DataSource",
+      "Properties": {
+        "ApiId": {
+          "Fn::GetAtt": [
+            "GraphQlApi",
+            "ApiId"
+          ]
+        },
+        "Name": "Chat",
+        "Description": "Chat relay",
+        "Type": "NONE"
+      }
+    },
+    "GraphQlResolverMutationmessage": {
+      "Type": "AWS::AppSync::Resolver",
+      "DependsOn": "GraphQlSchema",
+      "Properties": {
+        "ApiId": {
+          "Fn::GetAtt": [
+            "GraphQlApi",
+            "ApiId"
+          ]
+        },
+        "TypeName": "Mutation",
+        "FieldName": "message",
+        "RequestMappingTemplate": "{\r\n  \"version\": \"2017-02-28\",\r\n  \"payload\": {\r\n    \"body\": \"${context.arguments.body}\",\r\n    \"from\": \"${context.identity.username}\",\r\n    \"to\":  \"${context.arguments.to}\",\r\n    \"sentAt\": \"$util.time.nowISO8601()\"\r\n  }\r\n}\r\n",
+        "ResponseMappingTemplate": "$util.toJson($context.result)\r\n",
+        "Kind": "UNIT",
+        "DataSourceName": {
+          "Fn::GetAtt": [
+            "GraphQlDsChat",
+            "Name"
+          ]
+        }
+      }
+    },
+    "GraphQlResolverSubscriptioninbox": {
+      "Type": "AWS::AppSync::Resolver",
+      "DependsOn": "GraphQlSchema",
+      "Properties": {
+        "ApiId": {
+          "Fn::GetAtt": [
+            "GraphQlApi",
+            "ApiId"
+          ]
+        },
+        "TypeName": "Subscription",
+        "FieldName": "inbox",
+        "RequestMappingTemplate": "{\r\n  \"version\": \"2017-02-28\",\r\n  \"payload\": {\r\n    \"body\": \"${context.arguments.body}\",\r\n    \"from\": \"${context.identity.username}\",\r\n    \"to\":  \"${context.arguments.to}\",\r\n    \"sentAt\": \"$util.time.nowISO8601()\"\r\n  }\r\n}\r\n",
+        "ResponseMappingTemplate": "$util.toJson($context.result)\r\n",
+        "Kind": "UNIT",
+        "DataSourceName": {
+          "Fn::GetAtt": [
+            "GraphQlDsChat",
+            "Name"
+          ]
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "ServerlessDeploymentBucketName": {
+      "Value": {
+        "Ref": "ServerlessDeploymentBucket"
+      },
+      "Export": {
+        "Name": "sls-realtime-chat-dev-ServerlessDeploymentBucketName"
+      }
+    },
+    "GraphQlApiId": {
+      "Value": {
+        "Fn::GetAtt": [
+          "GraphQlApi",
+          "ApiId"
+        ]
+      }
+    },
+    "GraphQlApiUrl": {
+      "Value": {
+        "Fn::GetAtt": [
+          "GraphQlApi",
+          "GraphQLUrl"
+        ]
+      }
+    },
+    "GraphQlApiKeyDefault": {
+      "Value": {
+        "Fn::GetAtt": [
+          "GraphQlApiKeyDefault",
+          "ApiKey"
+        ]
+      }
+    }
+  }
+}

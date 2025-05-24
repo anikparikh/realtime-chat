@@ -1,0 +1,33 @@
+service: realtime-chat
+
+frameworkVersion: '2.72.0'
+
+plugins:
+  - serverless-appsync-plugin
+
+provider:
+  name: aws
+  region: us-east-1
+
+custom:
+  appSync:
+    name: realtimeChat
+    authenticationType: API_KEY
+    serviceRole: AppSyncServiceRole
+    schema: schema/schema.graphql
+    mappingTemplatesLocation: schema/mapping-templates
+    mappingTemplates:
+      - dataSource: Chat
+        type: Mutation
+        field: message
+        request: Message.request.vtl
+        response: ForwardResult.response.vtl
+      - dataSource: Chat
+        type: Subscription
+        field: inbox
+        request: Message.request.vtl
+        response: ForwardResult.response.vtl
+    dataSources:
+      - type: NONE
+        name: Chat
+        description: Chat relay
