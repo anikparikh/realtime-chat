@@ -1,6 +1,7 @@
 import InboxSubscription from './inboxSubscription';
 const RECIPIENT = 'Bobby';
 
+// Polyfills for WebSocket and localStorage (if running in a non-browser env)
 if (!global.WebSocket) {
   global.WebSocket = require('ws');
 }
@@ -23,13 +24,13 @@ if (!global.localStorage) {
   };
 }
 
-
+// Promise + fetch polyfill for older environments
 require('es6-promise').polyfill();
 require('isomorphic-fetch');
 
+// AppSync setup
 const AppSyncConfig = require('./config').default;
 const AWSAppSyncClient = require('aws-appsync').default;
-
 
 const client = new AWSAppSyncClient({
   url: AppSyncConfig.graphqlEndpoint,
@@ -37,15 +38,35 @@ const client = new AWSAppSyncClient({
   auth: {
     type: AppSyncConfig.authenticationType,
     apiKey: AppSyncConfig.apiKey,
-  }
+  },
+  disableOffline: true
 });
 
+// DOM helper to display messages
+function displayMessage(msg) {
+  const div = document.createElement('div');
+  div.innerText = `[${msg.sentAt}] ${msg.from}: ${msg.body}`;
+  document.body.appendChild(div);
+}
+
+// Start real-time subscription
 client.hydrated().then(client => {
-  const observable = client.subscribe({ query: InboxSubscription, variables: { to: RECIPIENT } });
+  const observable = client.subscribe({
+    query: InboxSubscription,
+    variables: { to: RECIPIENT }
+  });
 
   observable.subscribe({
-    next: data => console.log('realtime data: ', data),
-    complete: console.log,
-    error: console.log,
+    next: ({ data }) => {
+      if (data && data.inbox) {
+        displayMessage(data.inbox);
+      }
+    },
+    error: err => {
+      console.error("Subscription error:", err);
+    },
+    complete: () => {
+      console.log("Subscription completed");
+    }
   });
 });
