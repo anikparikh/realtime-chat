@@ -29,7 +29,7 @@ A fully serverless, production-grade **real-time chat application** that leverag
 
 ---
 
-## 🧠 What This Project Demonstrates
+## 🧠 What I Learned and Implemented
 
 This project reflects **hands-on experience in cloud-native, real-time architecture** and full-stack serverless development:
 
